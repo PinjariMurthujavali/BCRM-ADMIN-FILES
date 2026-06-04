@@ -2,7 +2,7 @@
 //  auth.js  —  Login / Session / Role Management
 // ============================================================
 
-const Auth = {
+window.Auth = {
   SESSION_KEY: "eaf_session",
 
   // Returns current logged-in user or null
