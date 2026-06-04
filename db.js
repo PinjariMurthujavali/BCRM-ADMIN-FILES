@@ -96,7 +96,7 @@ function seedDefaults() {
 }
 
 // ─── UNIFIED DB API ──────────────────────────────────────────
-const DB = {
+window.DB = {
   // Get one record
   async get(collection, id) {
     if (FIREBASE_ENABLED && _db) {
