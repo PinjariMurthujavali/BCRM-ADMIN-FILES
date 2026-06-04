@@ -19,7 +19,7 @@ const FIREBASE_CONFIG = {
 
 // Set true  = Firebase Firestore (cloud, multi-user)
 // Set false = LocalStorage      (offline, single device)
-const FIREBASE_ENABLED = true;
+const FIREBASE_ENABLED = false;
 
 // ─── FIREBASE INIT ───────────────────────────────────────────
 let _db = null;
@@ -62,13 +62,15 @@ const LS = {
 };
 
 // ─── SEED DEFAULT DATA ───────────────────────────────────────
-function seedDefaults() {
+async function seedDefaults() {
   const seeded = localStorage.getItem("eaf_seeded");
   const users = Object.values(LS.get("users") || {});
   if (seeded && users.length) return;
 
-  DB.set("users", "murthu",  { id:"murthu",  username:"Murthu",  password:"Murthu@44718",  role:"Super Administrator", avatar:"M", color:"#2563EB", createdAt: Date.now(), lastLogin: null, actionsCount: 89 });
-  DB.set("users", "rajesh",  { id:"rajesh",  username:"Rajesh",  password:"Rajesh@2001$",  role:"Administrator",       avatar:"R", color:"#059669", createdAt: Date.now(), lastLogin: null, actionsCount: 54 });
+  await Promise.all([
+    DB.set("users", "murthu",  { id:"murthu",  username:"Murthu",  password:"Murthu@44718",  role:"Super Administrator", avatar:"M", color:"#2563EB", createdAt: Date.now(), lastLogin: null, actionsCount: 89 }),
+    DB.set("users", "rajesh",  { id:"rajesh",  username:"Rajesh",  password:"Rajesh@2001$",  role:"Administrator",       avatar:"R", color:"#059669", createdAt: Date.now(), lastLogin: null, actionsCount: 54 })
+  ]);
 
   const projects = [
     { id:"crm",           name:"CRM",           client:"Acme Corp Ltd.",         icon:"ti-users",            color:"#EFF6FF", iconColor:"#2563EB", progress:72, status:"Active",      scripts:24, fields:38, reports:5,
@@ -104,7 +106,7 @@ function seedDefaults() {
       features: ["Stock Ledger", "Warehouse Transfers", "Batch / Serial Tracking", "Reorder Levels", "Stock Valuation"]
     }
   ];
-  projects.forEach(p => DB.set("projects", p.id, p));
+  await Promise.all(projects.map(p => DB.set("projects", p.id, p)));
 
   const scripts = [
     { id:"s1", name:"Lead Auto Follow-up",     doctype:"Lead",         trigger:"on_submit", project:"CRM",           createdBy:"Murthu", date:"12 Jun 2025", code:`frappe.ui.form.on('Lead', {\n  on_submit: function(frm) {\n    if (frm.doc.lead_owner) {\n      frappe.call({\n        method: 'crm.api.create_followup',\n        args: { lead_name: frm.doc.name, assigned_to: frm.doc.lead_owner },\n        callback: function(r) { frappe.msgprint('Follow-up created!'); }\n      });\n    }\n  }\n});` },
@@ -112,7 +114,7 @@ function seedDefaults() {
     { id:"s3", name:"BOM Cost Calculation",   doctype:"BOM",          trigger:"on_change", project:"Manufacturing", createdBy:"Murthu", date:"8 Jun 2025",  code:`frappe.ui.form.on('BOM', {\n  qty: function(frm) {\n    let total = 0;\n    frm.doc.items.forEach(row => { total += row.amount; });\n    frm.set_value('total_cost', total);\n  }\n});` },
     { id:"s4", name:"Invoice Tax Validator",  doctype:"Sales Invoice", trigger:"validate",  project:"Accounts",      createdBy:"Rajesh", date:"5 Jun 2025",  code:`frappe.ui.form.on('Sales Invoice', {\n  validate: function(frm) {\n    if (!frm.doc.taxes || frm.doc.taxes.length === 0) {\n      frappe.throw('Please add tax rows before submitting.');\n    }\n  }\n});` }
   ];
-  scripts.forEach(s => DB.set("client_scripts", s.id, s));
+  await Promise.all(scripts.map(s => DB.set("client_scripts", s.id, s)));
 
   const fields = [
     { id:"f1", doctype:"Lead",         label:"Customer Source",   fieldname:"custom_customer_source", type:"Select", insertAfter:"lead_name",   project:"CRM",           createdBy:"Murthu" },
@@ -121,9 +123,9 @@ function seedDefaults() {
     { id:"f4", doctype:"BOM",          label:"Approved By",       fieldname:"custom_approved_by",     type:"Link",   insertAfter:"bom_no",       project:"Manufacturing", createdBy:"Rajesh" },
     { id:"f5", doctype:"Patient",      label:"Emergency Contact", fieldname:"custom_emergency_contact",type:"Phone", insertAfter:"patient_name", project:"Healthcare",    createdBy:"Murthu" }
   ];
-  fields.forEach(f => DB.set("custom_fields", f.id, f));
+  await Promise.all(fields.map(f => DB.set("custom_fields", f.id, f)));
 
-  DB.set("settings", "app", { darkMode: false, currentUser: null });
+  await DB.set("settings", "app", { darkMode: false, currentUser: null });
   localStorage.setItem("eaf_seeded", "1");
   console.log("[DB] Seed data loaded");
 }
@@ -199,5 +201,5 @@ const DB = {
 // Init on load
 (async () => {
   await initFirebase();
-  seedDefaults();
+  await seedDefaults();
 })();
