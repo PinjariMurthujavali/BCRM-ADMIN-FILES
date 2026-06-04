@@ -47,13 +47,14 @@ function navigate(name, push = true) {
 // ─── AUTH UI ──────────────────────────────────────────────────
 async function doLogin() {
   const u = document.getElementById("login-user").value.trim();
-  const p = document.getElementById("login-pass").value;
+  const p = document.getElementById("login-pass").value.trim();
   const btn = document.getElementById("login-btn");
   const err = document.getElementById("login-err");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0"></span> Signing in...`;
   err.style.display = "none";
   try {
+    if (!u || !p) throw "Enter username and password";
     const user = await Auth.login(u, p);
     applyUser(user);
     document.getElementById("login-screen").style.display = "none";
@@ -214,7 +215,7 @@ function renderScriptsTable(scripts) {
       <td>${s.date}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="viewScript('${s.id}')"><i class="ti ti-eye"></i></button>
-        <button class="btn btn-outline btn-sm" onclick="deleteRecord('client_scripts','${s.id}','scripts-page')"><i class="ti ti-trash" style="color:#DC2626"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="deleteRecord('client_scripts','${s.id}','client-scripts')"><i class="ti ti-trash" style="color:#DC2626"></i></button>
       </td>
     </tr>`).join("");
 }
@@ -403,6 +404,7 @@ async function saveNewScript() {
   const code    = document.getElementById("ns-code").value.trim();
   if (!name || !doctype || !code) { showToast("Please fill required fields", "error"); return; }
   const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
   await DB.add("client_scripts", {
     name, doctype, trigger, project, code,
     createdBy: user.username,
@@ -410,7 +412,7 @@ async function saveNewScript() {
   });
   await DB.logActivity("add", `Client Script added — ${name}`, user.username, project);
   closeModal("modal-add-script");
-  ["ns-name","ns-doctype","ns-project","ns-code"].forEach(id => document.getElementById(id).value = "");
+  ["ns-name","ns-doctype","ns-project","ns-code"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   showToast("Script saved successfully!");
   navigate("client-scripts");
 }
@@ -424,9 +426,11 @@ async function saveNewField() {
   const project  = document.getElementById("nf-project").value.trim();
   if (!label || !doctype || !fieldname) { showToast("Please fill required fields", "error"); return; }
   const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
   await DB.add("custom_fields", { label, doctype, fieldname, type, insertAfter: after, project, createdBy: user.username });
   await DB.logActivity("add", `Custom Field added — ${label} in ${doctype}`, user.username, project);
   closeModal("modal-add-field");
+  ["nf-label","nf-doctype","nf-fieldname","nf-after","nf-project"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   showToast("Custom field saved!");
   navigate("custom-fields");
 }
@@ -436,6 +440,7 @@ async function saveNewProject() {
   const client = document.getElementById("np-client").value.trim();
   if (!name || !client) { showToast("Please fill required fields", "error"); return; }
   const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
   const id = name.toLowerCase().replace(/\s+/g, "-");
   await DB.set("projects", id, {
     id, name, client,
@@ -444,6 +449,7 @@ async function saveNewProject() {
   });
   await DB.logActivity("add", `Project created — ${name}`, user.username);
   closeModal("modal-add-project");
+  ["np-name","np-client"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   showToast("Project created!");
   navigate("projects");
 }
@@ -452,6 +458,7 @@ async function saveNewProject() {
 async function deleteRecord(collection, id, page) {
   if (!confirm("Delete this record? This cannot be undone.")) return;
   const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
   await DB.delete(collection, id);
   await DB.logActivity("delete", `Record deleted from ${collection}`, user.username);
   showToast("Deleted successfully", "success");
