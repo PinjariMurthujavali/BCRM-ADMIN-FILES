@@ -13,6 +13,7 @@ const Auth = {
 
   // Login — returns user object or throws error string
   async login(username, password) {
+    if (!username || !password) throw "Enter username and password";
     const users = await DB.getAll("users");
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!user) throw "Invalid username or password";
