@@ -7,18 +7,19 @@
 // ─── FIREBASE CONFIG ─────────────────────────────────────────
 // Replace these values with your Firebase project credentials
 // Firebase Console → Project Settings → Your Apps → Config
-const firebaseConfig = {
-  apiKey: "AIzaSyB8Z9VU8rQFUR3Z5Ecz7IZdV_7pQouX6UE",
-  authDomain: "bcrm-ab252.firebaseapp.com",
-  projectId: "bcrm-ab252",
-  storageBucket: "bcrm-ab252.firebasestorage.app",
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyB8Z9VU8rQFUR3Z5Ecz7IZdV_7pQouX6UE",
+  authDomain:        "bcrm-ab252.firebaseapp.com",
+  projectId:         "bcrm-ab252",
+  storageBucket:     "bcrm-ab252.appspot.com",
   messagingSenderId: "917883997779",
-  appId: "1:917883997779:web:5751c02f671c9c0799c0a6",
-  measurementId: "G-78K05ZBVZT"
+  appId:             "1:917883997779:web:5751c02f671c9c0799c0a6",
+  measurementId:     "G-78K05ZBVZT"
 };
+
 // Set true  = Firebase Firestore (cloud, multi-user)
 // Set false = LocalStorage      (offline, single device)
-const FIREBASE_ENABLED = false;
+const FIREBASE_ENABLED = true;
 
 // ─── FIREBASE INIT ───────────────────────────────────────────
 let _db = null;
@@ -28,10 +29,18 @@ async function initFirebase() {
   if (!FIREBASE_ENABLED) return;
   try {
     const { initializeApp }     = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getAnalytics }      = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js");
     const { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, onSnapshot }
                                   = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     window._fb = { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, orderBy, onSnapshot };
     const app = initializeApp(FIREBASE_CONFIG);
+    try {
+      const analytics = getAnalytics(app);
+      window._fb.analytics = analytics;
+      console.log("[DB] Firebase Analytics initialized");
+    } catch (err) {
+      console.warn("[DB] Firebase analytics not available", err);
+    }
     _db = getFirestore(app);
     console.log("[DB] Firebase Firestore connected");
   } catch(e) {
@@ -62,14 +71,38 @@ function seedDefaults() {
   DB.set("users", "rajesh",  { id:"rajesh",  username:"Rajesh",  password:"Rajesh@2001$",  role:"Administrator",       avatar:"R", color:"#059669", createdAt: Date.now(), lastLogin: null, actionsCount: 54 });
 
   const projects = [
-    { id:"crm",           name:"CRM",           client:"Acme Corp Ltd.",         icon:"ti-users",            color:"#EFF6FF", iconColor:"#2563EB", progress:72, status:"Active",      scripts:24, fields:38, reports:5 },
-    { id:"hrms",          name:"HRMS",          client:"TechNova Pvt Ltd.",       icon:"ti-id",               color:"#ECFDF5", iconColor:"#059669", progress:88, status:"Active",      scripts:31, fields:52, reports:9 },
-    { id:"manufacturing", name:"Manufacturing", client:"Steelcraft Industries",  icon:"ti-building-factory", color:"#FFF7ED", iconColor:"#EA580C", progress:55, status:"In Progress", scripts:18, fields:29, reports:6 },
-    { id:"healthcare",    name:"Healthcare",    client:"MedPlus Network",         icon:"ti-heart-rate",       color:"#FDF2F8", iconColor:"#BE185D", progress:40, status:"In Progress", scripts:12, fields:44, reports:7 },
-    { id:"education",     name:"Education",     client:"Bright Minds Academy",    icon:"ti-school",           color:"#F5F3FF", iconColor:"#7C3AED", progress:65, status:"Active",      scripts:9,  fields:21, reports:4 },
-    { id:"accounts",      name:"Accounts",      client:"GlobalFinance Ltd.",      icon:"ti-coin",             color:"#EFF6FF", iconColor:"#0284C7", progress:91, status:"Active",      scripts:14, fields:33, reports:11 },
-    { id:"retail",        name:"Retail",        client:"Dmart Solutions",         icon:"ti-shopping-cart",    color:"#FFF1F2", iconColor:"#E11D48", progress:30, status:"New",         scripts:7,  fields:18, reports:3 },
-    { id:"inventory",     name:"Inventory",     client:"LogiPro Warehousing",     icon:"ti-package",          color:"#F0FDF4", iconColor:"#16A34A", progress:78, status:"Active",      scripts:11, fields:27, reports:5 }
+    { id:"crm",           name:"CRM",           client:"Acme Corp Ltd.",         icon:"ti-users",            color:"#EFF6FF", iconColor:"#2563EB", progress:72, status:"Active",      scripts:24, fields:38, reports:5,
+      description: "ERPNext CRM with lead management, pipeline tracking, and customer engagement workflows.",
+      features: ["Lead Management", "Opportunity Tracking", "Sales Pipeline", "Customer Portal","Follow-up Automation"]
+    },
+    { id:"hrms",          name:"HRMS",          client:"TechNova Pvt Ltd.",       icon:"ti-id",               color:"#ECFDF5", iconColor:"#059669", progress:88, status:"Active",      scripts:31, fields:52, reports:9,
+      description: "HRMS automation for employee onboarding, leave management and payroll configuration.",
+      features: ["Employee Onboarding", "Attendance Tracking", "Leave & Holidays", "Payroll Setup", "Appraisal Workflow"]
+    },
+    { id:"manufacturing", name:"Manufacturing", client:"Steelcraft Industries",  icon:"ti-building-factory", color:"#FFF7ED", iconColor:"#EA580C", progress:55, status:"In Progress", scripts:18, fields:29, reports:6,
+      description: "Manufacturing module with BOM costing, work order automation and inventory planning.",
+      features: ["BOM Costing", "Work Order Management", "Material Requests", "Shop Floor Control", "Stock Reconciliation"]
+    },
+    { id:"healthcare",    name:"Healthcare",    client:"MedPlus Network",         icon:"ti-heart-rate",       color:"#FDF2F8", iconColor:"#BE185D", progress:40, status:"In Progress", scripts:12, fields:44, reports:7,
+      description: "Healthcare operations with patient records, appointment scheduling and clinical workflows.",
+      features: ["Patient Registration", "Appointment Scheduling", "Clinical Notes", "Billing Integration", "Prescription Tracking"]
+    },
+    { id:"education",     name:"Education",     client:"Bright Minds Academy",    icon:"ti-school",           color:"#F5F3FF", iconColor:"#7C3AED", progress:65, status:"Active",      scripts:9,  fields:21, reports:4,
+      description: "Education module for student records, attendance, assessments and fee management.",
+      features: ["Student Profiles", "Attendance", "Assessment Records", "Fee Collection", "Parent Communication"]
+    },
+    { id:"accounts",      name:"Accounts",      client:"GlobalFinance Ltd.",      icon:"ti-coin",             color:"#EFF6FF", iconColor:"#0284C7", progress:91, status:"Active",      scripts:14, fields:33, reports:11,
+      description: "Financial accounting with ledger posting, tax calculations and receivable/payable tracking.",
+      features: ["General Ledger", "Tax Posting", "Payment Terms", "Aging Reports", "Bank Reconciliation"]
+    },
+    { id:"retail",        name:"Retail",        client:"Dmart Solutions",         icon:"ti-shopping-cart",    color:"#FFF1F2", iconColor:"#E11D48", progress:30, status:"New",         scripts:7,  fields:18, reports:3,
+      description: "Retail operations for POS, pricing rules, and stock replenishment across outlets.",
+      features: ["POS Integration", "Pricing Rules", "Stock Replenishment", "Customer Loyalty", "Sales Reporting"]
+    },
+    { id:"inventory",     name:"Inventory",     client:"LogiPro Warehousing",     icon:"ti-package",          color:"#F0FDF4", iconColor:"#16A34A", progress:78, status:"Active",      scripts:11, fields:27, reports:5,
+      description: "Inventory management with stock movement, warehouse tracking and reorder automation.",
+      features: ["Stock Ledger", "Warehouse Transfers", "Batch / Serial Tracking", "Reorder Levels", "Stock Valuation"]
+    }
   ];
   projects.forEach(p => DB.set("projects", p.id, p));
 
@@ -96,7 +129,7 @@ function seedDefaults() {
 }
 
 // ─── UNIFIED DB API ──────────────────────────────────────────
-window.DB = {
+const DB = {
   // Get one record
   async get(collection, id) {
     if (FIREBASE_ENABLED && _db) {
