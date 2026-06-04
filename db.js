@@ -54,7 +54,9 @@ const LS = {
 
 // ─── SEED DEFAULT DATA ───────────────────────────────────────
 function seedDefaults() {
-  if (localStorage.getItem("eaf_seeded")) return;
+  const seeded = localStorage.getItem("eaf_seeded");
+  const users = Object.values(LS.get("users") || {});
+  if (seeded && users.length) return;
 
   DB.set("users", "murthu",  { id:"murthu",  username:"Murthu",  password:"Murthu@44718",  role:"Super Administrator", avatar:"M", color:"#2563EB", createdAt: Date.now(), lastLogin: null, actionsCount: 89 });
   DB.set("users", "rajesh",  { id:"rajesh",  username:"Rajesh",  password:"Rajesh@2001$",  role:"Administrator",       avatar:"R", color:"#059669", createdAt: Date.now(), lastLogin: null, actionsCount: 54 });
