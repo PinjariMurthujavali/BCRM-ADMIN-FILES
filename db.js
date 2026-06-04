@@ -7,15 +7,15 @@
 // ─── FIREBASE CONFIG ─────────────────────────────────────────
 // Replace these values with your Firebase project credentials
 // Firebase Console → Project Settings → Your Apps → Config
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_FIREBASE_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+const firebaseConfig = {
+  apiKey: "AIzaSyB8Z9VU8rQFUR3Z5Ecz7IZdV_7pQouX6UE",
+  authDomain: "bcrm-ab252.firebaseapp.com",
+  projectId: "bcrm-ab252",
+  storageBucket: "bcrm-ab252.firebasestorage.app",
+  messagingSenderId: "917883997779",
+  appId: "1:917883997779:web:5751c02f671c9c0799c0a6",
+  measurementId: "G-78K05ZBVZT"
 };
-
 // Set true  = Firebase Firestore (cloud, multi-user)
 // Set false = LocalStorage      (offline, single device)
 const FIREBASE_ENABLED = false;
