@@ -50,6 +50,7 @@
     <div class="sidebar-section">Main</div>
     <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
     <div class="nav-item" data-page="projects" onclick="navigate('projects')"><i class="ti ti-folder"></i>Projects<span class="nav-badge" id="badge-projects">8</span></div>
+    <div class="nav-item" data-page="project-workspace" onclick="navigate('project-workspace')"><i class="ti ti-building-skyscraper"></i>Project Workspace</div>
     <div class="sidebar-section">Customizations</div>
     <div class="nav-item" data-page="custom-fields" onclick="navigate('custom-fields')"><i class="ti ti-forms"></i>Custom Fields</div>
     <div class="nav-item" data-page="doctypes" onclick="navigate('doctypes')"><i class="ti ti-layout-list"></i>Doctypes</div>
@@ -78,7 +79,10 @@
   <div class="main-area">
     <header class="topbar">
       <button class="icon-btn d-lg-none me-2" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="ti ti-menu-2"></i></button>
-      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div class="text-muted" id="current-project-label" style="font-size:12px;margin-top:4px"></div>
+      </div>
       <div class="search-box">
         <i class="ti ti-search"></i>
         <input type="text" id="global-search" placeholder="Search projects, scripts...">
@@ -133,15 +137,20 @@
         <div class="projects-grid" id="projects-grid"><div class="d-flex justify-content-center p-5 w-100"><div class="spinner"></div></div></div>
       </div>
 
+      <div class="page" id="page-project-workspace" style="display:none">
+        <div class="page-header"><h4>Project Workspace</h4><button class="btn btn-secondary" onclick="navigate('projects')"><i class="ti ti-arrow-left"></i> Back to Projects</button></div>
+        <div id="project-workspace-content" class="workspace-content"><div class="empty-state"><i class="ti ti-info-circle"></i><h6>Select a project to open its isolated workspace</h6><p>Open any project from the Projects page to manage its customizations, documentation, scripts, workflows, reports and APIs.</p></div></div>
+      </div>
+
       <!-- CUSTOM FIELDS -->
       <div class="page" id="page-custom-fields" style="display:none">
-        <div class="page-header"><h4>Custom Fields</h4><button class="btn btn-primary" onclick="openModal('modal-add-field')"><i class="ti ti-plus"></i> Add Field</button></div>
+        <div class="page-header"><h4>Fields</h4><button class="btn btn-primary" onclick="openModal('modal-add-field')"><i class="ti ti-plus"></i> Add Field</button></div>
         <div class="table-wrap"><table><thead><tr><th>Doctype</th><th>Field Label</th><th>Fieldname</th><th>Type</th><th>Insert After</th><th>Project</th><th>Actions</th></tr></thead><tbody id="fields-tbody"><tr><td colspan="7"><div class="d-flex justify-content-center p-4"><div class="spinner"></div></div></td></tr></tbody></table></div>
       </div>
 
       <!-- DOCTYPES -->
       <div class="page" id="page-doctypes" style="display:none">
-        <div class="page-header"><h4>Custom Doctypes</h4><button class="btn btn-primary"><i class="ti ti-plus"></i> Add Doctype</button></div>
+        <div class="page-header"><h4>Doctypes</h4><button class="btn btn-primary"><i class="ti ti-plus"></i> Add Doctype</button></div>
         <div class="table-wrap"><table><thead><tr><th>Doctype Name</th><th>Module</th><th>Fields</th><th>Child Tables</th><th>Project</th><th>Version</th></tr></thead><tbody><tr><td><strong>Customer Feedback</strong></td><td>CRM</td><td>12</td><td>1</td><td>CRM</td><td>v1.2</td></tr><tr><td><strong>Training Record</strong></td><td>HR</td><td>18</td><td>2</td><td>HRMS</td><td>v2.0</td></tr></tbody></table></div>
       </div>
 
@@ -247,10 +256,65 @@
   <div class="modal-box">
     <div class="modal-header"><h5><i class="ti ti-folder-plus me-2" style="color:var(--pri)"></i>New Project</h5><button class="btn btn-outline btn-sm" onclick="closeModal('modal-add-project')"><i class="ti ti-x"></i></button></div>
     <div class="modal-body">
-      <div class="mb-3"><label class="form-label">Project Name *</label><input id="np-name" class="form-control" placeholder="e.g. CRM, HRMS"></div>
-      <div class="mb-3"><label class="form-label">Client Name *</label><input id="np-client" class="form-control" placeholder="e.g. Acme Corp Ltd."></div>
+      <div class="row g-3">
+        <div class="col-6"><label class="form-label">Project Name *</label><input id="np-name" class="form-control" placeholder="e.g. CRM, HRMS"></div>
+        <div class="col-6"><label class="form-label">Client Name *</label><input id="np-client" class="form-control" placeholder="e.g. Acme Corp Ltd."></div>
+        <div class="col-6"><label class="form-label">Status</label><select id="np-status" class="form-control"><option>New</option><option>Active</option><option>In Progress</option></select></div>
+        <div class="col-6"><label class="form-label">Progress (%)</label><input id="np-progress" type="number" min="0" max="100" class="form-control" placeholder="0"></div>
+      </div>
     </div>
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('modal-add-project')">Cancel</button><button class="btn btn-primary" onclick="saveNewProject()"><i class="ti ti-check"></i> Create Project</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-view-project" onclick="if(event.target===this)closeModal('modal-view-project')">
+  <div class="modal-box" style="max-width:700px">
+    <div class="modal-header">
+      <div>
+        <h5 id="project-view-title">Project Details</h5>
+        <div id="project-view-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-view-project')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="project-view-stats" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;color:var(--muted)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div><strong id="project-view-progress">0% complete</strong></div>
+        <span class="tag tag-gray" id="project-view-status">Status</span>
+      </div>
+      <div style="margin-bottom:16px">
+        <h6>ERPNext Features</h6>
+        <ul id="project-features-list" style="padding-left:18px;margin-top:8px;color:var(--text);"></ul>
+      </div>
+      <div>
+        <h6>Description</h6>
+        <p id="project-view-description" style="color:var(--muted);margin-top:8px"></p>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('modal-view-project')">Close</button><button class="btn btn-primary" onclick="openEditProject(window._currentProjectId)"><i class="ti ti-edit"></i> Edit Project</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-edit-project" onclick="if(event.target===this)closeModal('modal-edit-project')">
+  <div class="modal-box">
+    <div class="modal-header"><h5><i class="ti ti-edit me-2" style="color:var(--pri)"></i>Edit Project</h5><button class="btn btn-outline btn-sm" onclick="closeModal('modal-edit-project')"><i class="ti ti-x"></i></button></div>
+    <div class="modal-body">
+      <input id="ep-id" type="hidden">
+      <div class="row g-3">
+        <div class="col-6"><label class="form-label">Project Name *</label><input id="ep-name" class="form-control"></div>
+        <div class="col-6"><label class="form-label">Client Name *</label><input id="ep-client" class="form-control"></div>
+        <div class="col-6"><label class="form-label">Status</label><select id="ep-status" class="form-control"><option>New</option><option>Active</option><option>In Progress</option></select></div>
+        <div class="col-6"><label class="form-label">Progress (%)</label><input id="ep-progress" type="number" min="0" max="100" class="form-control"></div>
+        <div class="col-4"><label class="form-label">Scripts</label><input id="ep-scripts" type="number" min="0" class="form-control"></div>
+        <div class="col-4"><label class="form-label">Fields</label><input id="ep-fields" type="number" min="0" class="form-control"></div>
+        <div class="col-4"><label class="form-label">Reports</label><input id="ep-reports" type="number" min="0" class="form-control"></div>
+        <div class="col-12"><label class="form-label">Description</label><textarea id="ep-description" class="form-control" rows="3"></textarea></div>
+        <div class="col-12"><label class="form-label">ERPNext Features <span style="font-size:12px;color:var(--muted)">(one per line)</span></label><textarea id="ep-features" class="form-control" rows="4" placeholder="Lead Management
+Opportunity Tracking
+Customer Portal"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('modal-edit-project')">Cancel</button><button class="btn btn-primary" onclick="saveProjectUpdate()"><i class="ti ti-device-floppy"></i> Save Changes</button></div>
   </div>
 </div>
 
