@@ -19,8 +19,34 @@ function closeModal(id) { document.getElementById(id).classList.remove("open"); 
 // ─── ROUTER ──────────────────────────────────────────────────
 const ROUTES = {};
 let currentRoute = null;
+let CURRENT_PROJECT = null;
 
 function register(name, fn) { ROUTES[name] = fn; }
+
+function setCurrentProject(project) {
+  CURRENT_PROJECT = project;
+  const label = document.getElementById("current-project-label");
+  if (label) {
+    label.textContent = project ? `Current Project: ${project.name} — ${project.client}` : "";
+  }
+}
+
+function projectFiltered(records) {
+  if (!CURRENT_PROJECT) return records;
+  return records.filter(r => {
+    const projectName = String(CURRENT_PROJECT.name || "").toLowerCase();
+    return [r.project, r.projectName, r.project_name, r.project_id, r.projectId]
+      .some(value => String(value || "").toLowerCase() === projectName);
+  });
+}
+
+function openProjectWorkspace(id) {
+  return DB.get("projects", id).then(project => {
+    if (!project) { showToast("Project not found", "error"); return; }
+    setCurrentProject(project);
+    navigate("project-workspace");
+  });
+}
 
 function navigate(name, push = true) {
   document.querySelectorAll(".page").forEach(p => p.style.display = "none");
@@ -33,6 +59,7 @@ function navigate(name, push = true) {
   if (navEl) navEl.classList.add("active");
   const titles = {
     dashboard:"Dashboard", projects:"Projects",
+    "project-workspace":"Project Workspace",
     "custom-fields":"Custom Fields", doctypes:"Custom Doctypes",
     "client-scripts":"Client Scripts", "server-scripts":"Server Scripts",
     reports:"Reports", workflows:"Workflows", "print-formats":"Print Formats",
@@ -164,11 +191,21 @@ async function loadRecentActivity() {
   }).join("");
 }
 
-// ─── PROJECTS PAGE ────────────────────────────────────────────
-register("projects", async () => {
-  const projects = await DB.getAll("projects");
+const PROJECT_STATUS_ORDER = { Active: 0, "In Progress": 1, New: 2 };
+const statusTag = s => s === "Active" ? "tag-green" : s === "In Progress" ? "tag-amber" : s === "New" ? "tag-red" : "tag-gray";
+
+function sortProjects(projects) {
+  return [...projects].sort((a, b) => {
+    const statusDiff = (PROJECT_STATUS_ORDER[a.status] ?? 9) - (PROJECT_STATUS_ORDER[b.status] ?? 9);
+    if (statusDiff !== 0) return statusDiff;
+    if ((b.progress || 0) !== (a.progress || 0)) return (b.progress || 0) - (a.progress || 0);
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function renderProjects(projects) {
   const el = document.getElementById("projects-grid");
-  const statusTag = s => s === "Active" ? "tag-green" : s === "In Progress" ? "tag-amber" : s === "New" ? "tag-red" : "tag-gray";
+  if (!el) return;
   el.innerHTML = projects.map(p => `
     <div class="card card-hover project-card">
       <div class="pc-head">
@@ -176,25 +213,157 @@ register("projects", async () => {
         <div><div class="pc-name">${p.name}</div><div class="pc-client">${p.client}</div></div>
       </div>
       <div class="pc-stats">
-        <div class="pc-stat"><span>${p.scripts}</span> scripts</div>
-        <div class="pc-stat"><span>${p.fields}</span> fields</div>
-        <div class="pc-stat"><span>${p.reports}</span> reports</div>
+        <div class="pc-stat"><span>${p.scripts || 0}</span> scripts</div>
+        <div class="pc-stat"><span>${p.fields || 0}</span> fields</div>
+        <div class="pc-stat"><span>${p.reports || 0}</span> reports</div>
       </div>
-      <div class="progress"><div class="progress-fill" style="width:${p.progress}%"></div></div>
+      <div class="progress"><div class="progress-fill" style="width:${p.progress || 0}%"></div></div>
       <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)">
-        <span>${p.progress}% complete</span>
-        <span class="tag ${statusTag(p.status)}" style="font-size:10.5px">${p.status}</span>
+        <span>${p.progress || 0}% complete</span>
+        <span class="tag ${statusTag(p.status)}" style="font-size:10.5px">${p.status || 'New'}</span>
+      </div>
+      <div class="project-actions" style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-outline btn-sm" onclick="openProjectWorkspace('${p.id}')"><i class="ti ti-arrow-right-circle"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="openEditProject('${p.id}')"><i class="ti ti-edit"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="deleteProject('${p.id}')"><i class="ti ti-trash" style="color:#DC2626"></i></button>
       </div>
     </div>`).join("") +
     `<div class="card project-card" style="border:2px dashed var(--border);background:transparent;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;min-height:160px;cursor:pointer" onclick="openModal('modal-add-project')">
       <i class="ti ti-plus" style="font-size:28px;color:var(--muted)"></i>
       <span style="font-size:14px;color:var(--muted)">Add New Project</span>
     </div>`;
+}
+
+register("projects", async () => {
+  const projects = sortProjects(await DB.getAll("projects"));
+  renderProjects(projects);
 });
+
+register("project-workspace", async () => {
+  const el = document.getElementById("project-workspace-content");
+  if (!el) return;
+  if (!CURRENT_PROJECT) {
+    el.innerHTML = `<div class="empty-state"><i class="ti ti-info-circle"></i><h6>Select a project to open its isolated workspace</h6><p>Open a project from the Projects page to view only its customizations, scripts, workflows, reports and API documentation.</p></div>`;
+    return;
+  }
+  const [fields, scripts, reports, workflows, apiDocs] = await Promise.all([
+    DB.getAll("custom_fields"), DB.getAll("client_scripts"), DB.getAll("reports"), DB.getAll("workflows"), DB.getAll("api_docs")
+  ]);
+  const projectFields = projectFiltered(fields);
+  const projectScripts = projectFiltered(scripts);
+  const projectReports = projectFiltered(reports);
+  const projectWorkflows = projectFiltered(workflows);
+  const projectApis = projectFiltered(apiDocs);
+  el.innerHTML = `
+    <div class="dashboard-grid">
+      <div class="card stat-card"><div class="stat-icon" style="background:#EFF6FF;color:#2563EB"><i class="ti ti-folder"></i></div><div class="stat-label">Project</div><div class="stat-value">${CURRENT_PROJECT.name}</div></div>
+      <div class="card stat-card"><div class="stat-icon" style="background:#ECFDF5;color:#059669"><i class="ti ti-forms"></i></div><div class="stat-label">Custom Fields</div><div class="stat-value">${projectFields.length}</div></div>
+      <div class="card stat-card"><div class="stat-icon" style="background:#F5F3FF;color:#7C3AED"><i class="ti ti-code"></i></div><div class="stat-label">Client Scripts</div><div class="stat-value">${projectScripts.length}</div></div>
+      <div class="card stat-card"><div class="stat-icon" style="background:#FFFBEB;color:#D97706"><i class="ti ti-chart-bar"></i></div><div class="stat-label">Reports</div><div class="stat-value">${projectReports.length}</div></div>
+      <div class="card stat-card"><div class="stat-icon" style="background:#EFF6FF;color:#0284C7"><i class="ti ti-git-branch"></i></div><div class="stat-label">Workflows</div><div class="stat-value">${projectWorkflows.length}</div></div>
+      <div class="card stat-card"><div class="stat-icon" style="background:#F0FDF4;color:#16A34A"><i class="ti ti-api"></i></div><div class="stat-label">APIs</div><div class="stat-value">${projectApis.length}</div></div>
+    </div>
+    <div class="project-overview-grid">
+      <div class="card"><h6>Project Health</h6><p>${CURRENT_PROJECT.progress || 0}% complete · ${CURRENT_PROJECT.status || 'New'}</p></div>
+      <div class="card"><h6>Client</h6><p>${CURRENT_PROJECT.client}</p></div>
+      <div class="card"><h6>ERPNext Features</h6><ul style="padding-left:18px;margin-top:8px">${(CURRENT_PROJECT.features||[]).map(f => `<li>${f}</li>`).join('') || '<li style="color:var(--muted)">No features documented yet.</li>'}</ul></div>
+    </div>
+    <div class="project-actions-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn btn-primary" onclick="navigate('client-scripts')"><i class="ti ti-code"></i> Client Scripts</button>
+      <button class="btn btn-primary" onclick="navigate('custom-fields')"><i class="ti ti-forms"></i> Custom Fields</button>
+      <button class="btn btn-primary" onclick="navigate('reports')"><i class="ti ti-chart-bar"></i> Reports</button>
+      <button class="btn btn-primary" onclick="navigate('workflows')"><i class="ti ti-git-branch"></i> Workflows</button>
+      <button class="btn btn-primary" onclick="navigate('api-docs')"><i class="ti ti-api"></i> APIs</button>
+    </div>`;
+});
+
+async function openProjectDetails(id) {
+  const project = await DB.get("projects", id);
+  if (!project) return;
+  window._currentProjectId = id;
+  document.getElementById("project-view-title").textContent = project.name;
+  document.getElementById("project-view-subtitle").textContent = `${project.client} · ${project.status || 'New'}`;
+  document.getElementById("project-view-progress").textContent = `${project.progress || 0}% complete`;
+  document.getElementById("project-view-stats").innerHTML = `
+    <div class="pc-stat"><strong>${project.scripts || 0}</strong> scripts</div>
+    <div class="pc-stat"><strong>${project.fields || 0}</strong> fields</div>
+    <div class="pc-stat"><strong>${project.reports || 0}</strong> reports</div>`;
+  document.getElementById("project-view-description").textContent = project.description || "No additional description provided.";
+  document.getElementById("project-view-status").textContent = project.status || "New";
+  document.getElementById("project-view-status").className = `tag ${statusTag(project.status)}`;
+  const features = project.features || [];
+  document.getElementById("project-features-list").innerHTML = features.length ? features.map(f => `<li>${f}</li>`).join("") : `<li style="color:var(--muted);font-size:13px">No ERPNext feature list available.</li>`;
+  openModal("modal-view-project");
+}
+
+async function openProjectWorkspace(id) {
+  const project = await DB.get("projects", id);
+  if (!project) return;
+  window._currentProjectId = id;
+  setCurrentProject(project);
+  showToast(`Opened workspace for ${project.name}`);
+  navigate("project-workspace");
+}
+async function openEditProject(id) {
+  closeModal('modal-view-project');
+  const project = await DB.get("projects", id);
+  if (!project) return;
+  window._currentProjectId = id;
+  document.getElementById("ep-id").value = id;
+  document.getElementById("ep-name").value = project.name || "";
+  document.getElementById("ep-client").value = project.client || "";
+  document.getElementById("ep-status").value = project.status || "New";
+  document.getElementById("ep-progress").value = project.progress ?? 0;
+  document.getElementById("ep-scripts").value = project.scripts ?? 0;
+  document.getElementById("ep-fields").value = project.fields ?? 0;
+  document.getElementById("ep-reports").value = project.reports ?? 0;
+  document.getElementById("ep-description").value = project.description || "";
+  document.getElementById("ep-features").value = (project.features || []).join("\n");
+  openModal("modal-edit-project");
+}
+
+function normalizeFeatureText(value) {
+  return value.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean);
+}
+
+async function saveProjectUpdate() {
+  const id = document.getElementById("ep-id").value;
+  const name = document.getElementById("ep-name").value.trim();
+  const client = document.getElementById("ep-client").value.trim();
+  const status = document.getElementById("ep-status").value;
+  const progress = Number(document.getElementById("ep-progress").value) || 0;
+  const scripts = Number(document.getElementById("ep-scripts").value) || 0;
+  const fields = Number(document.getElementById("ep-fields").value) || 0;
+  const reports = Number(document.getElementById("ep-reports").value) || 0;
+  const description = document.getElementById("ep-description").value.trim();
+  const features = normalizeFeatureText(document.getElementById("ep-features").value);
+  if (!id || !name || !client) { showToast("Project name and client are required", "error"); return; }
+  const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
+  await DB.update("projects", id, {
+    name, client, status, progress, scripts, fields, reports,
+    description, features
+  });
+  await DB.logActivity("edit", `Project updated — ${name}`, user.username, name);
+  closeModal("modal-edit-project");
+  showToast("Project updated successfully!");
+  navigate("projects");
+}
+
+async function deleteProject(id) {
+  if (!confirm("Delete this project? This cannot be undone.")) return;
+  const user = Auth.currentUser();
+  if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
+  const project = await DB.get("projects", id);
+  await DB.delete("projects", id);
+  await DB.logActivity("delete", `Project deleted — ${project?.name || id}`, user.username, project?.name || id);
+  showToast("Project deleted successfully", "success");
+  navigate("projects");
+}
 
 // ─── CLIENT SCRIPTS PAGE ─────────────────────────────────────
 register("client-scripts", async () => {
-  const all = await DB.getAll("client_scripts");
+  const all = projectFiltered(await DB.getAll("client_scripts"));
   renderScriptsTable(all);
 });
 
@@ -241,7 +410,7 @@ function syntaxHL(code) {
 
 // ─── CUSTOM FIELDS PAGE ───────────────────────────────────────
 register("custom-fields", async () => {
-  const all = await DB.getAll("custom_fields");
+  const all = projectFiltered(await DB.getAll("custom_fields"));
   const tbody = document.getElementById("fields-tbody");
   if (!tbody) return;
   if (!all.length) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="ti ti-forms"></i><h6>No custom fields yet</h6></div></td></tr>`; return; }
@@ -262,7 +431,7 @@ register("custom-fields", async () => {
 
 // ─── REPORTS PAGE ────────────────────────────────────────────
 register("reports", async () => {
-  const all = await DB.getAll("reports");
+  const all = projectFiltered(await DB.getAll("reports"));
   const tbody = document.getElementById("reports-tbody");
   if (!tbody) return;
   tbody.innerHTML = all.length ? all.map(r => `
@@ -280,7 +449,7 @@ register("reports", async () => {
 
 // ─── WORKFLOWS PAGE ───────────────────────────────────────────
 register("workflows", async () => {
-  const all = await DB.getAll("workflows");
+  const all = projectFiltered(await DB.getAll("workflows"));
   const tbody = document.getElementById("wf-tbody");
   if (!tbody) return;
   tbody.innerHTML = all.length ? all.map(w => `
@@ -297,7 +466,7 @@ register("workflows", async () => {
 
 // ─── PRINT FORMATS PAGE ───────────────────────────────────────
 register("print-formats", async () => {
-  const all = await DB.getAll("print_formats");
+  const all = projectFiltered(await DB.getAll("print_formats"));
   const tbody = document.getElementById("pf-tbody");
   if (!tbody) return;
   tbody.innerHTML = all.length ? all.map(p => `
@@ -313,7 +482,7 @@ register("print-formats", async () => {
 
 // ─── SERVER SCRIPTS PAGE ─────────────────────────────────────
 register("server-scripts", async () => {
-  const all = await DB.getAll("server_scripts");
+  const all = projectFiltered(await DB.getAll("server_scripts"));
   const tbody = document.getElementById("ss-tbody");
   if (!tbody) return;
   tbody.innerHTML = all.length ? all.map(s => `
@@ -330,7 +499,7 @@ register("server-scripts", async () => {
 
 // ─── API DOCS PAGE ───────────────────────────────────────────
 register("api-docs", async () => {
-  const all = await DB.getAll("api_docs");
+  const all = projectFiltered(await DB.getAll("api_docs"));
   const tbody = document.getElementById("api-tbody");
   if (!tbody) return;
   const methodTag = m => ({ GET:"tag-green", POST:"tag-blue", PUT:"tag-amber", DELETE:"tag-red" }[m] || "tag-gray");
@@ -438,6 +607,8 @@ async function saveNewField() {
 async function saveNewProject() {
   const name   = document.getElementById("np-name").value.trim();
   const client = document.getElementById("np-client").value.trim();
+  const status = document.getElementById("np-status").value;
+  const progress = Number(document.getElementById("np-progress").value) || 0;
   if (!name || !client) { showToast("Please fill required fields", "error"); return; }
   const user = Auth.currentUser();
   if (!user) { showToast("Session expired. Please log in again.", "error"); return; }
@@ -445,11 +616,14 @@ async function saveNewProject() {
   await DB.set("projects", id, {
     id, name, client,
     icon: "ti-folder", color: "#EFF6FF", iconColor: "#2563EB",
-    progress: 0, status: "New", scripts: 0, fields: 0, reports: 0
+    progress, status, scripts: 0, fields: 0, reports: 0,
+    description: "",
+    features: []
   });
   await DB.logActivity("add", `Project created — ${name}`, user.username);
   closeModal("modal-add-project");
-  ["np-name","np-client"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  ["np-name","np-client","np-progress"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  document.getElementById("np-status").value = "New";
   showToast("Project created!");
   navigate("projects");
 }
